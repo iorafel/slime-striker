@@ -1,0 +1,41 @@
+# 仮想環境ディレクトリ
+.venv/
+venv/
+env/
+
+# Python キャッシュ
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE設定
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git関連
+.git/
+.gitignore
+
+# Poetry関連
+poetry.lock
+pyproject.toml
+
+# その他の設定ファイル
+netlify.toml
+vercel.json
+README.md
+
+# 開発用ファイル
+debug_*
+generate_*
+requirements.txt
+
+# ログファイル
+*.log
+
+# OS関連
+.DS_Store
+Thumbs.db
