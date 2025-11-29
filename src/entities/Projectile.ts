@@ -1,7 +1,31 @@
 import Phaser from 'phaser';
 
+interface Sparkle {
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+}
+
 export class Projectile extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, velocityX, velocityY, powerLevel = 1, isBig = false) {
+  public velocityX: number;
+  public velocityY: number;
+  public powerLevel: number;
+  public isBig: boolean;
+  public radius: number;
+
+  private graphics: Phaser.GameObjects.Graphics;
+  private sparkles: Sparkle[] = [];
+
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    velocityX: number,
+    velocityY: number,
+    powerLevel: number = 1,
+    isBig: boolean = false
+  ) {
     super(scene, x, y);
     scene.add.existing(this);
 
@@ -9,23 +33,21 @@ export class Projectile extends Phaser.GameObjects.Container {
     this.velocityY = velocityY;
     this.powerLevel = powerLevel;
     this.isBig = isBig;
-    this.active = true;
 
     this.radius = isBig ? 50 : 8;
-    this.sparkles = [];
 
     this.graphics = scene.add.graphics();
     this.add(this.graphics);
     this.draw();
   }
 
-  get color() {
+  get color(): number {
     if (this.isBig) return 0xffd700; // Gold
     if (this.powerLevel >= 3) return 0xff6600; // Orange for form 3
     return 0x9966ff; // Purple
   }
 
-  draw() {
+  private draw(): void {
     this.graphics.clear();
     if (!this.active) return;
 
@@ -49,7 +71,7 @@ export class Projectile extends Phaser.GameObjects.Container {
     }
   }
 
-  update(delta) {
+  update(delta: number): boolean {
     if (!this.active) return false;
 
     this.x += this.velocityX * (delta / 16.67);
@@ -77,33 +99,37 @@ export class Projectile extends Phaser.GameObjects.Container {
     return true;
   }
 
-  destroy() {
+  destroy(): void {
     this.active = false;
     this.graphics.clear();
     super.destroy();
   }
 
-  getBounds() {
+  getBounds(): Phaser.Geom.Circle {
     return new Phaser.Geom.Circle(this.x, this.y, this.radius);
   }
 }
 
 export class AlienBullet extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, angle, speed = 5) {
+  public velocityX: number;
+  public velocityY: number;
+  public radius: number = 5;
+
+  private graphics: Phaser.GameObjects.Graphics;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, angle: number, speed: number = 5) {
     super(scene, x, y);
     scene.add.existing(this);
 
     this.velocityX = Math.cos(angle) * speed;
     this.velocityY = Math.sin(angle) * speed;
-    this.active = true;
-    this.radius = 5;
 
     this.graphics = scene.add.graphics();
     this.add(this.graphics);
     this.draw();
   }
 
-  draw() {
+  private draw(): void {
     this.graphics.clear();
     if (!this.active) return;
 
@@ -120,7 +146,7 @@ export class AlienBullet extends Phaser.GameObjects.Container {
     this.graphics.fillCircle(0, 0, this.radius * 0.4);
   }
 
-  update(delta) {
+  update(delta: number): boolean {
     if (!this.active) return false;
 
     this.x += this.velocityX * (delta / 16.67);
@@ -130,19 +156,28 @@ export class AlienBullet extends Phaser.GameObjects.Container {
     return true;
   }
 
-  destroy() {
+  destroy(): void {
     this.active = false;
     this.graphics.clear();
     super.destroy();
   }
 
-  getBounds() {
+  getBounds(): Phaser.Geom.Circle {
     return new Phaser.Geom.Circle(this.x, this.y, this.radius);
   }
 }
 
 export class DeflectedBullet extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, angle) {
+  public velocityX: number;
+  public velocityY: number;
+  public radius: number = 5;
+
+  private graphics: Phaser.GameObjects.Graphics;
+  private lifetime: number = 3000;
+  private age: number = 0;
+  private sparkleAngle: number = 0;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, angle: number) {
     super(scene, x, y);
     scene.add.existing(this);
 
@@ -151,18 +186,13 @@ export class DeflectedBullet extends Phaser.GameObjects.Container {
     const speed = 8;
     this.velocityX = Math.cos(deflectAngle) * speed;
     this.velocityY = Math.sin(deflectAngle) * speed;
-    this.active = true;
-    this.radius = 5;
-    this.lifetime = 3000;
-    this.age = 0;
-    this.sparkleAngle = 0;
 
     this.graphics = scene.add.graphics();
     this.add(this.graphics);
     this.draw();
   }
 
-  draw() {
+  private draw(): void {
     this.graphics.clear();
     if (!this.active) return;
 
@@ -183,7 +213,7 @@ export class DeflectedBullet extends Phaser.GameObjects.Container {
     this.graphics.fillCircle(sparkleX, sparkleY, 2);
   }
 
-  update(delta) {
+  update(delta: number): boolean {
     if (!this.active) return false;
 
     this.age += delta;
@@ -200,13 +230,13 @@ export class DeflectedBullet extends Phaser.GameObjects.Container {
     return true;
   }
 
-  destroy() {
+  destroy(): void {
     this.active = false;
     this.graphics.clear();
     super.destroy();
   }
 
-  getBounds() {
+  getBounds(): Phaser.Geom.Circle {
     return new Phaser.Geom.Circle(this.x, this.y, this.radius);
   }
 }

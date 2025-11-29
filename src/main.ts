@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { BootScene } from './scenes/BootScene.js';
-import { GameScene } from './scenes/GameScene.js';
-import { GameOverScene } from './scenes/GameOverScene.js';
+import { BootScene } from './scenes/BootScene';
+import { GameScene } from './scenes/GameScene';
+import { GameOverScene } from './scenes/GameOverScene';
 
-const config = {
+const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   width: 800,
   height: 600,
@@ -12,11 +12,11 @@ const config = {
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { y: 800 },
+      gravity: { x: 0, y: 800 },
       debug: false
     }
   },
   scene: [BootScene, GameScene, GameOverScene]
 };
 
-const game = new Phaser.Game(config);
+new Phaser.Game(config);

@@ -1,24 +1,58 @@
 import Phaser from 'phaser';
-import { Slime } from '../entities/Slime.js';
-import { Platform, SpikedPlatform, FlyingPlatform } from '../entities/Platform.js';
-import { Alien } from '../entities/Alien.js';
-import { Apple } from '../entities/Apple.js';
-import { Projectile, AlienBullet, DeflectedBullet } from '../entities/Projectile.js';
-import { Explosion, BigExplosion, ScreenFlash } from '../entities/Explosion.js';
-import { ParallaxBackground } from '../systems/ParallaxBackground.js';
+import { Slime } from '../entities/Slime';
+import { Platform, SpikedPlatform, FlyingPlatform } from '../entities/Platform';
+import { Alien } from '../entities/Alien';
+import { Apple, AppleType } from '../entities/Apple';
+import { Projectile, AlienBullet, DeflectedBullet } from '../entities/Projectile';
+import { Explosion, BigExplosion, ScreenFlash } from '../entities/Explosion';
+import { ParallaxBackground } from '../systems/ParallaxBackground';
+
+interface GameSounds {
+  pnyo: Phaser.Sound.BaseSound;
+  alienDestroy: Phaser.Sound.BaseSound;
+  explosion: Phaser.Sound.BaseSound;
+}
 
 export class GameScene extends Phaser.Scene {
+  private score: number = 0;
+  private cameraX: number = 0;
+  private lastPlatformX: number = 0;
+
+  private background!: ParallaxBackground;
+  private slime!: Slime;
+
+  private platforms: (Platform | SpikedPlatform)[] = [];
+  private aliens: Alien[] = [];
+  private apples: Apple[] = [];
+  private projectiles: Projectile[] = [];
+  private alienBullets: AlienBullet[] = [];
+  private deflectedBullets: DeflectedBullet[] = [];
+  private explosions: (Explosion | BigExplosion)[] = [];
+  private flyingPlatforms: FlyingPlatform[] = [];
+  private screenFlash: ScreenFlash | null = null;
+
+  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private spaceKey!: Phaser.Input.Keyboard.Key;
+
+  private alienAttackTimer: number = 0;
+  private alienAttackInterval: number = 1000;
+
+  private scoreText!: Phaser.GameObjects.Text;
+  private doubleJumpText!: Phaser.GameObjects.Text;
+  private purpleTimerText!: Phaser.GameObjects.Text;
+
+  private bgm?: Phaser.Sound.BaseSound;
+  private sounds!: GameSounds;
+
   constructor() {
     super({ key: 'GameScene' });
   }
 
-  create() {
+  create(): void {
     // Game state
     this.score = 0;
     this.cameraX = 0;
     this.lastPlatformX = 0;
-    this.lastAlienX = 0;
-    this.lastAppleX = 0;
 
     // Parallax background
     this.background = new ParallaxBackground(this);
@@ -41,8 +75,8 @@ export class GameScene extends Phaser.Scene {
     this.slime = new Slime(this, 200, 300);
 
     // Input
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.cursors = this.input.keyboard!.createCursorKeys();
+    this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     // Alien attack timer
     this.alienAttackTimer = 0;
@@ -51,21 +85,21 @@ export class GameScene extends Phaser.Scene {
     // UI
     this.scoreText = this.add.text(16, 16, 'Score: 0', {
       font: '24px Arial',
-      fill: '#ffffff',
+      color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 2
     }).setScrollFactor(0).setDepth(100);
 
     this.doubleJumpText = this.add.text(16, 50, '', {
       font: '18px Arial',
-      fill: '#8b4513',
+      color: '#8b4513',
       stroke: '#000000',
       strokeThickness: 2
     }).setScrollFactor(0).setDepth(100);
 
     this.purpleTimerText = this.add.text(16, 80, '', {
       font: '18px Arial',
-      fill: '#9932cc',
+      color: '#9932cc',
       stroke: '#000000',
       strokeThickness: 2
     }).setScrollFactor(0).setDepth(100);
@@ -77,7 +111,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, Number.MAX_SAFE_INTEGER, 600);
   }
 
-  setupSounds() {
+  private setupSounds(): void {
     try {
       this.bgm = this.sound.add('bgm', { loop: true, volume: 0.5 });
       this.bgm.play();
@@ -92,7 +126,7 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
-  createInitialPlatforms() {
+  private createInitialPlatforms(): void {
     // Ground platform
     const ground = new Platform(this, 400, 550, 800, 40);
     this.platforms.push(ground);
@@ -104,7 +138,7 @@ export class GameScene extends Phaser.Scene {
     this.lastPlatformX = 200 + 9 * 150;
   }
 
-  generatePlatform(x) {
+  private generatePlatform(x: number): void {
     const y = Phaser.Math.Between(200, 500);
     const isSpike = Math.random() < 0.1;
 
@@ -125,20 +159,20 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  generateAlien(x) {
+  private generateAlien(x: number): void {
     const y = Phaser.Math.Between(100, 400);
     const type = Math.random() < 0.1 ? 'red' : 'normal';
     const alien = new Alien(this, x, y, type);
     this.aliens.push(alien);
   }
 
-  generateApple(x, y) {
+  private generateApple(x: number, y: number): void {
     const type = Apple.getRandomType();
     const apple = new Apple(this, x, y, type);
     this.apples.push(apple);
   }
 
-  update(time, delta) {
+  update(time: number, delta: number): void {
     // Input handling
     this.handleInput(time);
 
@@ -155,7 +189,7 @@ export class GameScene extends Phaser.Scene {
     this.updateEntities(delta);
 
     // Handle collisions
-    this.handleCollisions(time);
+    this.handleCollisions();
 
     // Alien attacks
     this.handleAlienAttacks(time);
@@ -170,7 +204,7 @@ export class GameScene extends Phaser.Scene {
     this.background.update(this.cameraX);
   }
 
-  handleInput(time) {
+  private handleInput(time: number): void {
     const slime = this.slime;
 
     // Movement
@@ -194,20 +228,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  fireProjectile(time) {
+  private fireProjectile(time: number): void {
     const slime = this.slime;
     slime.fire(time);
 
     const direction = slime.facingRight ? 1 : -1;
-    let velocityX = direction * 10;
+    let velocityX: number;
     let velocityY = 0;
 
     // Upward fire if up is held
-    if (this.cursors.up.isDown) {
-      velocityY = -10;
-      velocityX = direction * 3;
-    }
-
     const isBig = slime.isPurpleForm;
     const speed = isBig ? 22 : 10;
     velocityX = direction * speed;
@@ -228,7 +257,7 @@ export class GameScene extends Phaser.Scene {
     this.projectiles.push(projectile);
   }
 
-  updateSlimePhysics(delta) {
+  private updateSlimePhysics(delta: number): void {
     const slime = this.slime;
 
     // Gravity
@@ -242,7 +271,7 @@ export class GameScene extends Phaser.Scene {
     slime.update(this.time.now, delta);
   }
 
-  updateCamera() {
+  private updateCamera(): void {
     // Follow slime (one-directional)
     const targetX = this.slime.x - 200;
     if (targetX > this.cameraX) {
@@ -251,7 +280,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.scrollX = this.cameraX;
   }
 
-  generateContent() {
+  private generateContent(): void {
     const screenRight = this.cameraX + 1000;
 
     // Generate platforms
@@ -261,7 +290,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  updateEntities(delta) {
+  private updateEntities(delta: number): void {
     // Update aliens
     for (const alien of this.aliens) {
       alien.update(delta);
@@ -313,7 +342,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  handleCollisions(time) {
+  private handleCollisions(): void {
     const slime = this.slime;
     const slimeBounds = slime.getBounds();
 
@@ -332,7 +361,7 @@ export class GameScene extends Phaser.Scene {
 
           // Purple form launches platforms
           if (slime.isPurpleForm && !(platform instanceof SpikedPlatform)) {
-            this.launchPlatform(platform);
+            this.launchPlatform(platform as Platform);
           }
         }
       }
@@ -417,7 +446,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  circleRectOverlap(circle, rect) {
+  private circleRectOverlap(circle: Phaser.Geom.Circle, rect: Phaser.Geom.Rectangle): boolean {
     const closestX = Phaser.Math.Clamp(circle.x, rect.x, rect.x + rect.width);
     const closestY = Phaser.Math.Clamp(circle.y, rect.y, rect.y + rect.height);
     const distanceX = circle.x - closestX;
@@ -425,10 +454,12 @@ export class GameScene extends Phaser.Scene {
     return (distanceX * distanceX + distanceY * distanceY) < (circle.radius * circle.radius);
   }
 
-  collectApple(apple) {
+  private collectApple(apple: Apple): void {
     try {
       this.sounds.pnyo.play();
-    } catch (e) {}
+    } catch (e) {
+      // Sound may not be available
+    }
 
     if (apple.appleType === 'green') {
       this.destroyAllAliens();
@@ -437,7 +468,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  destroyAllAliens() {
+  private destroyAllAliens(): void {
     this.screenFlash = new ScreenFlash(this);
 
     for (let i = this.aliens.length - 1; i >= 0; i--) {
@@ -452,10 +483,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  destroyAlien(alien, index) {
+  private destroyAlien(alien: Alien, index: number): void {
     try {
       this.sounds.alienDestroy.play();
-    } catch (e) {}
+    } catch (e) {
+      // Sound may not be available
+    }
 
     this.createExplosion(alien.x, alien.y);
     this.score++;
@@ -476,14 +509,14 @@ export class GameScene extends Phaser.Scene {
     this.aliens.splice(index, 1);
   }
 
-  createExplosion(x, y, big = false) {
+  private createExplosion(x: number, y: number, big: boolean = false): void {
     const explosion = big
       ? new BigExplosion(this, x, y)
       : new Explosion(this, x, y);
     this.explosions.push(explosion);
   }
 
-  launchPlatform(platform) {
+  private launchPlatform(platform: Platform): void {
     const index = this.platforms.indexOf(platform);
     if (index > -1) {
       const vx = (Math.random() - 0.5) * 10;
@@ -497,7 +530,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  handleAlienAttacks(time) {
+  private handleAlienAttacks(time: number): void {
     if (time - this.alienAttackTimer < this.alienAttackInterval) return;
     this.alienAttackTimer = time;
 
@@ -515,7 +548,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  cleanup() {
+  private cleanup(): void {
     const leftBound = this.cameraX - 200;
     const rightBound = this.cameraX + 1000;
 
@@ -563,7 +596,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  updateUI() {
+  private updateUI(): void {
     this.scoreText.setText(`Score: ${this.score}`);
 
     if (this.slime.doubleJumpCharges > 0) {
@@ -580,7 +613,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  gameOver() {
+  private gameOver(): void {
     if (this.bgm) {
       this.bgm.stop();
     }

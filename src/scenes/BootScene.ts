@@ -5,8 +5,7 @@ export class BootScene extends Phaser.Scene {
     super({ key: 'BootScene' });
   }
 
-  preload() {
-    // Show loading progress
+  preload(): void {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
 
@@ -17,10 +16,10 @@ export class BootScene extends Phaser.Scene {
 
     const loadingText = this.add.text(width / 2, height / 2 - 50, 'Loading...', {
       font: '20px monospace',
-      fill: '#ffffff'
+      color: '#ffffff'
     }).setOrigin(0.5);
 
-    this.load.on('progress', (value) => {
+    this.load.on('progress', (value: number) => {
       progressBar.clear();
       progressBar.fillStyle(0x00ff00, 1);
       progressBar.fillRect(width / 2 - 150, height / 2 - 15, 300 * value, 30);
@@ -45,7 +44,7 @@ export class BootScene extends Phaser.Scene {
     this.load.audio('explosion', 'assets/sounds/explosion.wav');
   }
 
-  create() {
+  create(): void {
     this.scene.start('GameScene');
   }
 }

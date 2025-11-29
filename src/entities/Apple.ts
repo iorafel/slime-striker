@@ -1,21 +1,34 @@
 import Phaser from 'phaser';
 
+export type AppleType = 'red' | 'blue' | 'green' | 'purple' | 'brown';
+
+interface Sparkle {
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+}
+
 export class Apple extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, type = 'red') {
+  public appleType: AppleType;
+  public collected: boolean = false;
+
+  private graphics: Phaser.GameObjects.Graphics;
+  private sparkleTimer: number = 0;
+  private sparkles: Sparkle[] = [];
+
+  constructor(scene: Phaser.Scene, x: number, y: number, type: AppleType = 'red') {
     super(scene, x, y);
     scene.add.existing(this);
 
     this.appleType = type;
-    this.collected = false;
-    this.sparkleTimer = 0;
-    this.sparkles = [];
 
     this.graphics = scene.add.graphics();
     this.add(this.graphics);
     this.draw();
   }
 
-  get color() {
+  get color(): number {
     switch (this.appleType) {
       case 'red': return 0xff0000;
       case 'blue': return 0x0088ff;
@@ -26,36 +39,31 @@ export class Apple extends Phaser.GameObjects.Container {
     }
   }
 
-  get isSpecial() {
+  get isSpecial(): boolean {
     return ['blue', 'green', 'purple', 'brown'].includes(this.appleType);
   }
 
-  draw() {
+  private draw(): void {
     this.graphics.clear();
     if (this.collected) return;
 
     const size = 15;
     const color = this.color;
 
-    // Glow for special apples
     if (this.isSpecial) {
       this.graphics.fillStyle(color, 0.3);
       this.graphics.fillCircle(0, 0, size * 1.5);
     }
 
-    // Apple body
     this.graphics.fillStyle(color, 1);
     this.graphics.fillCircle(0, 0, size);
 
-    // Highlight
     this.graphics.fillStyle(0xffffff, 0.4);
     this.graphics.fillCircle(-size * 0.3, -size * 0.3, size * 0.3);
 
-    // Stem
     this.graphics.fillStyle(0x4a2800, 1);
     this.graphics.fillRect(-2, -size - 5, 4, 8);
 
-    // Leaf
     this.graphics.fillStyle(0x228b22, 1);
     this.graphics.beginPath();
     this.graphics.moveTo(2, -size - 2);
@@ -64,7 +72,6 @@ export class Apple extends Phaser.GameObjects.Container {
     this.graphics.closePath();
     this.graphics.fillPath();
 
-    // Draw sparkles for special apples
     if (this.isSpecial) {
       for (const sparkle of this.sparkles) {
         const alpha = sparkle.life / sparkle.maxLife;
@@ -74,10 +81,9 @@ export class Apple extends Phaser.GameObjects.Container {
     }
   }
 
-  update(delta) {
+  update(delta: number): void {
     if (this.collected) return;
 
-    // Sparkle effect for special apples
     if (this.isSpecial) {
       this.sparkleTimer += delta;
       if (this.sparkleTimer > 100) {
@@ -101,21 +107,21 @@ export class Apple extends Phaser.GameObjects.Container {
     this.draw();
   }
 
-  collect() {
+  collect(): void {
     this.collected = true;
     this.graphics.clear();
   }
 
-  getBounds() {
+  getBounds(): Phaser.Geom.Rectangle {
     return new Phaser.Geom.Rectangle(this.x - 15, this.y - 15, 30, 30);
   }
 
-  static getRandomType() {
+  static getRandomType(): AppleType {
     const rand = Math.random();
-    if (rand < 0.02) return 'purple';       // 2%
-    if (rand < 0.07) return 'green';        // 5%
-    if (rand < 0.17) return 'brown';        // 10%
-    if (rand < 0.42) return 'blue';         // 25%
-    return 'red';                           // 58%
+    if (rand < 0.02) return 'purple';
+    if (rand < 0.07) return 'green';
+    if (rand < 0.17) return 'brown';
+    if (rand < 0.42) return 'blue';
+    return 'red';
   }
 }

@@ -1,15 +1,34 @@
 import Phaser from 'phaser';
 
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+}
+
+interface BigParticle extends Particle {
+  color: number;
+}
+
 export class Explosion extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, maxRadius = 30, color = 0xff6600) {
+  private maxRadius: number;
+  private explosionColor: number;
+  private currentRadius: number;
+  private growthRate: number;
+  private particles: Particle[];
+  private graphics: Phaser.GameObjects.Graphics;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, maxRadius: number = 30, color: number = 0xff6600) {
     super(scene, x, y);
     scene.add.existing(this);
 
     this.maxRadius = maxRadius;
-    this.color = color;
+    this.explosionColor = color;
     this.currentRadius = 5;
     this.growthRate = 3;
-    this.active = true;
     this.particles = [];
 
     // Create particles
@@ -31,14 +50,14 @@ export class Explosion extends Phaser.GameObjects.Container {
     this.draw();
   }
 
-  draw() {
+  private draw(): void {
     this.graphics.clear();
     if (!this.active) return;
 
     const alpha = Math.max(0, 1 - this.currentRadius / this.maxRadius);
 
     // Main explosion circle
-    this.graphics.fillStyle(this.color, alpha * 0.5);
+    this.graphics.fillStyle(this.explosionColor, alpha * 0.5);
     this.graphics.fillCircle(0, 0, this.currentRadius);
 
     // Core
@@ -48,12 +67,12 @@ export class Explosion extends Phaser.GameObjects.Container {
     // Particles
     for (const p of this.particles) {
       const pAlpha = p.life / p.maxLife;
-      this.graphics.fillStyle(this.color, pAlpha);
+      this.graphics.fillStyle(this.explosionColor, pAlpha);
       this.graphics.fillCircle(p.x, p.y, 3);
     }
   }
 
-  update(delta) {
+  update(delta: number): boolean {
     if (!this.active) return false;
 
     this.currentRadius += this.growthRate * (delta / 16.67);
@@ -75,7 +94,7 @@ export class Explosion extends Phaser.GameObjects.Container {
     return true;
   }
 
-  destroy() {
+  destroy(): void {
     this.active = false;
     this.graphics.clear();
     super.destroy();
@@ -83,14 +102,19 @@ export class Explosion extends Phaser.GameObjects.Container {
 }
 
 export class BigExplosion extends Phaser.GameObjects.Container {
-  constructor(scene, x, y) {
+  private maxRadius: number;
+  private currentRadius: number;
+  private growthRate: number;
+  private particles: BigParticle[];
+  private graphics: Phaser.GameObjects.Graphics;
+
+  constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
     scene.add.existing(this);
 
     this.maxRadius = 100;
     this.currentRadius = 10;
     this.growthRate = 5;
-    this.active = true;
     this.particles = [];
 
     // Create more particles
@@ -113,7 +137,7 @@ export class BigExplosion extends Phaser.GameObjects.Container {
     this.draw();
   }
 
-  draw() {
+  private draw(): void {
     this.graphics.clear();
     if (!this.active) return;
 
@@ -139,7 +163,7 @@ export class BigExplosion extends Phaser.GameObjects.Container {
     }
   }
 
-  update(delta) {
+  update(delta: number): boolean {
     if (!this.active) return false;
 
     this.currentRadius += this.growthRate * (delta / 16.67);
@@ -162,7 +186,7 @@ export class BigExplosion extends Phaser.GameObjects.Container {
     return true;
   }
 
-  destroy() {
+  destroy(): void {
     this.active = false;
     this.graphics.clear();
     super.destroy();
@@ -170,16 +194,17 @@ export class BigExplosion extends Phaser.GameObjects.Container {
 }
 
 export class ScreenFlash extends Phaser.GameObjects.Rectangle {
-  constructor(scene) {
+  private lifetime: number = 200;
+  private age: number = 0;
+
+  constructor(scene: Phaser.Scene) {
     super(scene, 400, 300, 800, 600, 0xffffff, 1);
     scene.add.existing(this);
 
-    this.lifetime = 200;
-    this.age = 0;
     this.setDepth(1000);
   }
 
-  update(delta) {
+  update(delta: number): boolean {
     this.age += delta;
     this.setAlpha(Math.max(0, 1 - this.age / this.lifetime));
 

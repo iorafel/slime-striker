@@ -1,12 +1,25 @@
 import Phaser from 'phaser';
 
+interface ParallaxLayer extends Phaser.GameObjects.TileSprite {
+  speedMultiplier: number;
+}
+
+interface LayerConfig {
+  key: string;
+  speed: number;
+  y: number;
+}
+
 export class ParallaxBackground {
-  constructor(scene) {
+  private scene: Phaser.Scene;
+  private layers: ParallaxLayer[] = [];
+  private proceduralBg?: Phaser.GameObjects.Graphics;
+
+  constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    this.layers = [];
 
     // Layer configurations: [key, speedMultiplier, yOffset]
-    const layerConfigs = [
+    const layerConfigs: LayerConfig[] = [
       { key: 'sky_layer1', speed: 0.1, y: 0 },
       { key: 'sky_layer2', speed: 0.3, y: 0 },
       { key: 'mountain_layer', speed: 0.6, y: 0 },
@@ -17,7 +30,7 @@ export class ParallaxBackground {
       try {
         const layer = scene.add.tileSprite(
           400, 300, 800, 600, config.key
-        );
+        ) as ParallaxLayer;
         layer.setScrollFactor(0);
         layer.speedMultiplier = config.speed;
         this.layers.push(layer);
@@ -33,7 +46,7 @@ export class ParallaxBackground {
     }
   }
 
-  createProceduralBackground() {
+  private createProceduralBackground(): void {
     const graphics = this.scene.add.graphics();
 
     // Sky gradient
@@ -67,7 +80,7 @@ export class ParallaxBackground {
     this.proceduralBg = graphics;
   }
 
-  update(cameraX) {
+  update(cameraX: number): void {
     for (const layer of this.layers) {
       layer.tilePositionX = cameraX * layer.speedMultiplier;
     }
