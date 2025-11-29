@@ -1,0 +1,18 @@
+{
+  "name": "slime-striker",
+  "version": "2.0.0",
+  "description": "Infinite side-scrolling action game with Phaser 3",
+  "main": "src/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  }
+}

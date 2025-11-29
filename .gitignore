@@ -167,4 +167,4 @@ cython_debug/
 # Application specific
 logs/
 config/
-data/
+data/node_modules/

@@ -1,3 +1,0 @@
-[virtualenvs]
-# 開発時はプロジェクト内に仮想環境を作成
-in-project = true
