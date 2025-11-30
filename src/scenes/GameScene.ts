@@ -46,6 +46,7 @@ export class GameScene extends Phaser.Scene {
   private touchIndicators: Phaser.GameObjects.Arc[] = [];
   private jumpButton!: Phaser.GameObjects.Container;
   private resetButton!: Phaser.GameObjects.Container;
+  private fullscreenButton!: Phaser.GameObjects.Container;
   private resetConfirmOverlay: Phaser.GameObjects.Container | null = null;
   private pauseStartTime: number = 0;
 
@@ -114,6 +115,9 @@ export class GameScene extends Phaser.Scene {
     // Reset button
     this.createResetButton();
 
+    // Fullscreen button
+    this.createFullscreenButton();
+
     // Alien attack timer
     this.alienAttackTimer = 0;
     this.alienAttackInterval = 1000;
@@ -157,9 +161,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createJumpButton(): void {
-    const screenWidth = this.cameras.main.width;
     const screenHeight = this.cameras.main.height;
-    const buttonX = screenWidth - 80;
+    const buttonX = 80;
     const buttonY = screenHeight - 80;
     const radius = 50;
 
@@ -268,6 +271,79 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private createFullscreenButton(): void {
+    const screenWidth = this.cameras.main.width;
+    const screenHeight = this.cameras.main.height;
+    const buttonX = screenWidth - 50;
+    const buttonY = screenHeight - 50;
+    const radius = 35;
+
+    this.fullscreenButton = this.add.container(buttonX, buttonY);
+    this.fullscreenButton.setScrollFactor(0);
+    this.fullscreenButton.setDepth(150);
+
+    // Circle background
+    const circle = this.add.graphics();
+    circle.fillStyle(0x000000, 0.4);
+    circle.fillCircle(0, 0, radius);
+    circle.lineStyle(2, 0xffffff, 0.8);
+    circle.strokeCircle(0, 0, radius);
+    this.fullscreenButton.add(circle);
+
+    // Fullscreen icon (four corners)
+    const icon = this.add.graphics();
+    icon.lineStyle(3, 0xffffff, 0.9);
+    const s = 10; // size
+    const g = 5;  // gap from center
+
+    // Top-left corner
+    icon.moveTo(-g - s, -g);
+    icon.lineTo(-g, -g);
+    icon.lineTo(-g, -g - s);
+
+    // Top-right corner
+    icon.moveTo(g + s, -g);
+    icon.lineTo(g, -g);
+    icon.lineTo(g, -g - s);
+
+    // Bottom-left corner
+    icon.moveTo(-g - s, g);
+    icon.lineTo(-g, g);
+    icon.lineTo(-g, g + s);
+
+    // Bottom-right corner
+    icon.moveTo(g + s, g);
+    icon.lineTo(g, g);
+    icon.lineTo(g, g + s);
+
+    icon.strokePath();
+    this.fullscreenButton.add(icon);
+
+    // Make interactive
+    const hitArea = new Phaser.Geom.Circle(0, 0, radius);
+    this.fullscreenButton.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+
+    this.fullscreenButton.on('pointerdown', () => {
+      if (this.resetConfirmOverlay) return;
+      this.fullscreenButton.setScale(0.9);
+
+      // Toggle fullscreen
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
+
+    this.fullscreenButton.on('pointerup', () => {
+      this.fullscreenButton.setScale(1);
+    });
+
+    this.fullscreenButton.on('pointerout', () => {
+      this.fullscreenButton.setScale(1);
+    });
+  }
+
   private showResetConfirm(): void {
     if (this.resetConfirmOverlay) return;
 
@@ -357,13 +433,24 @@ export class GameScene extends Phaser.Scene {
       const relativeY = pointer.y;
 
       // Check if touching jump button area (skip other controls)
-      const jumpButtonX = screenWidth - 80;
+      const jumpButtonX = 80;
       const jumpButtonY = screenHeight - 80;
       const distToJumpButton = Math.sqrt(
         Math.pow(relativeX - jumpButtonX, 2) + Math.pow(relativeY - jumpButtonY, 2)
       );
       if (distToJumpButton < 60) {
         // Jump button handles this
+        return;
+      }
+
+      // Check if touching fullscreen button area (skip other controls)
+      const fullscreenButtonX = screenWidth - 50;
+      const fullscreenButtonY = screenHeight - 50;
+      const distToFullscreenButton = Math.sqrt(
+        Math.pow(relativeX - fullscreenButtonX, 2) + Math.pow(relativeY - fullscreenButtonY, 2)
+      );
+      if (distToFullscreenButton < 45) {
+        // Fullscreen button handles this
         return;
       }
 
