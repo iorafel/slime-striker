@@ -17,6 +17,9 @@ export class GameScene extends Phaser.Scene {
   private score: number = 0;
   private cameraX: number = 0;
   private lastPlatformX: number = 0;
+  private lastGroundX: number = 0;
+  private isGameOver: boolean = false;
+  private gameStartTime: number = 0;
 
   private background!: ParallaxBackground;
   private slime!: Slime;
@@ -33,6 +36,18 @@ export class GameScene extends Phaser.Scene {
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private spaceKey!: Phaser.Input.Keyboard.Key;
+
+  // Touch controls
+  private touchLeft: boolean = false;
+  private touchRight: boolean = false;
+  private touchJump: boolean = false;
+  private touchFire: boolean = false;
+  private lastTouchTime: number = 0;
+  private touchIndicators: Phaser.GameObjects.Arc[] = [];
+  private jumpButton!: Phaser.GameObjects.Container;
+  private resetButton!: Phaser.GameObjects.Container;
+  private resetConfirmOverlay: Phaser.GameObjects.Container | null = null;
+  private pauseStartTime: number = 0;
 
   private alienAttackTimer: number = 0;
   private alienAttackInterval: number = 1000;
@@ -53,6 +68,18 @@ export class GameScene extends Phaser.Scene {
     this.score = 0;
     this.cameraX = 0;
     this.lastPlatformX = 0;
+    this.lastGroundX = 0;
+    this.isGameOver = false;
+    this.gameStartTime = this.time.now;
+
+    // Reset touch states
+    this.touchLeft = false;
+    this.touchRight = false;
+    this.touchJump = false;
+    this.touchFire = false;
+    this.touchIndicators = [];
+    this.resetConfirmOverlay = null;
+    this.pauseStartTime = 0;
 
     // Parallax background
     this.background = new ParallaxBackground(this);
@@ -77,6 +104,15 @@ export class GameScene extends Phaser.Scene {
     // Input
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+    // Touch controls setup
+    this.setupTouchControls();
+
+    // Jump button
+    this.createJumpButton();
+
+    // Reset button
+    this.createResetButton();
 
     // Alien attack timer
     this.alienAttackTimer = 0;
@@ -109,6 +145,335 @@ export class GameScene extends Phaser.Scene {
 
     // Camera
     this.cameras.main.setBounds(0, 0, Number.MAX_SAFE_INTEGER, 600);
+
+    // Cleanup on shutdown
+    this.events.once('shutdown', this.cleanupInputListeners, this);
+  }
+
+  private cleanupInputListeners(): void {
+    this.input.off('pointerdown');
+    this.input.off('pointerup');
+    this.input.off('pointermove');
+  }
+
+  private createJumpButton(): void {
+    const screenWidth = this.cameras.main.width;
+    const screenHeight = this.cameras.main.height;
+    const buttonX = screenWidth - 80;
+    const buttonY = screenHeight - 80;
+    const radius = 50;
+
+    this.jumpButton = this.add.container(buttonX, buttonY);
+    this.jumpButton.setScrollFactor(0);
+    this.jumpButton.setDepth(150);
+
+    // Circle background
+    const circle = this.add.graphics();
+    circle.fillStyle(0x000000, 0.4);
+    circle.fillCircle(0, 0, radius);
+    circle.lineStyle(3, 0xffffff, 0.8);
+    circle.strokeCircle(0, 0, radius);
+    this.jumpButton.add(circle);
+
+    // Arrow (pointing up)
+    const arrow = this.add.graphics();
+    arrow.fillStyle(0xffffff, 0.9);
+    // Arrow body
+    arrow.fillRect(-8, -5, 16, 25);
+    // Arrow head (triangle)
+    arrow.beginPath();
+    arrow.moveTo(0, -25);
+    arrow.lineTo(-18, -5);
+    arrow.lineTo(18, -5);
+    arrow.closePath();
+    arrow.fillPath();
+    this.jumpButton.add(arrow);
+
+    // Make interactive
+    const hitArea = new Phaser.Geom.Circle(0, 0, radius);
+    this.jumpButton.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+
+    this.jumpButton.on('pointerdown', () => {
+      if (this.resetConfirmOverlay) return;
+      this.slime.jump();
+      // Visual feedback
+      this.jumpButton.setScale(0.9);
+    });
+
+    this.jumpButton.on('pointerup', () => {
+      this.jumpButton.setScale(1);
+    });
+
+    this.jumpButton.on('pointerout', () => {
+      this.jumpButton.setScale(1);
+    });
+  }
+
+  private createResetButton(): void {
+    const buttonX = this.cameras.main.width - 80;
+    const buttonY = 80;
+    const radius = 50;
+
+    this.resetButton = this.add.container(buttonX, buttonY);
+    this.resetButton.setScrollFactor(0);
+    this.resetButton.setDepth(150);
+
+    // Circle background
+    const circle = this.add.graphics();
+    circle.fillStyle(0x000000, 0.4);
+    circle.fillCircle(0, 0, radius);
+    circle.lineStyle(2, 0xffffff, 0.8);
+    circle.strokeCircle(0, 0, radius);
+    this.resetButton.add(circle);
+
+    // Circular arrow (refresh icon)
+    const arrow = this.add.graphics();
+    arrow.lineStyle(4, 0xffffff, 0.9);
+
+    // Draw arc (circular part)
+    arrow.beginPath();
+    arrow.arc(0, 0, 22, Phaser.Math.DegToRad(-60), Phaser.Math.DegToRad(200), false);
+    arrow.strokePath();
+
+    // Draw arrowhead
+    arrow.fillStyle(0xffffff, 0.9);
+    arrow.beginPath();
+    const arrowTipX = 22 * Math.cos(Phaser.Math.DegToRad(-60));
+    const arrowTipY = 22 * Math.sin(Phaser.Math.DegToRad(-60));
+    arrow.moveTo(arrowTipX, arrowTipY);
+    arrow.lineTo(arrowTipX + 12, arrowTipY - 3);
+    arrow.lineTo(arrowTipX + 3, arrowTipY + 12);
+    arrow.closePath();
+    arrow.fillPath();
+
+    this.resetButton.add(arrow);
+
+    // Make interactive
+    const hitArea = new Phaser.Geom.Circle(0, 0, radius);
+    this.resetButton.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+
+    this.resetButton.on('pointerdown', () => {
+      if (this.resetConfirmOverlay) return;
+      this.resetButton.setScale(0.9);
+    });
+
+    this.resetButton.on('pointerup', () => {
+      if (this.resetConfirmOverlay) return;
+      this.resetButton.setScale(1);
+      this.showResetConfirm();
+    });
+
+    this.resetButton.on('pointerout', () => {
+      this.resetButton.setScale(1);
+    });
+  }
+
+  private showResetConfirm(): void {
+    if (this.resetConfirmOverlay) return;
+
+    // Record pause start time
+    this.pauseStartTime = this.time.now;
+
+    const screenWidth = this.cameras.main.width;
+    const screenHeight = this.cameras.main.height;
+
+    this.resetConfirmOverlay = this.add.container(0, 0);
+    this.resetConfirmOverlay.setScrollFactor(0);
+    this.resetConfirmOverlay.setDepth(300);
+
+    // Dark overlay (also interactive to block input to game)
+    const overlay = this.add.rectangle(screenWidth / 2, screenHeight / 2, screenWidth, screenHeight, 0x000000, 0.7);
+    overlay.setInteractive();
+    this.resetConfirmOverlay.add(overlay);
+
+    // Confirm text
+    const confirmText = this.add.text(screenWidth / 2, screenHeight / 2 - 50, 'リセットしますか？', {
+      font: 'bold 32px Arial',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    this.resetConfirmOverlay.add(confirmText);
+
+    // Yes button
+    const yesBg = this.add.rectangle(screenWidth / 2 - 80, screenHeight / 2 + 40, 120, 50, 0x44aa44);
+    yesBg.setInteractive({ useHandCursor: true });
+    yesBg.on('pointerdown', () => {
+      try {
+        if (this.bgm) {
+          this.bgm.stop();
+        }
+      } catch (e) {
+        // Ignore sound errors
+      }
+      this.resetConfirmOverlay?.destroy();
+      this.resetConfirmOverlay = null;
+      this.scene.restart();
+    });
+    this.resetConfirmOverlay.add(yesBg);
+
+    const yesText = this.add.text(screenWidth / 2 - 80, screenHeight / 2 + 40, 'はい', {
+      font: 'bold 24px Arial',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    this.resetConfirmOverlay.add(yesText);
+
+    // No button
+    const noBg = this.add.rectangle(screenWidth / 2 + 80, screenHeight / 2 + 40, 120, 50, 0xaa4444);
+    noBg.setInteractive({ useHandCursor: true });
+    noBg.on('pointerdown', () => {
+      this.hideResetConfirm();
+    });
+    this.resetConfirmOverlay.add(noBg);
+
+    const noText = this.add.text(screenWidth / 2 + 80, screenHeight / 2 + 40, 'いいえ', {
+      font: 'bold 24px Arial',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    this.resetConfirmOverlay.add(noText);
+  }
+
+  private hideResetConfirm(): void {
+    if (this.resetConfirmOverlay) {
+      // Adjust game start time to account for pause duration
+      const pauseDuration = this.time.now - this.pauseStartTime;
+      this.gameStartTime += pauseDuration;
+      this.alienAttackTimer += pauseDuration;
+
+      this.resetConfirmOverlay.destroy();
+      this.resetConfirmOverlay = null;
+    }
+  }
+
+  private setupTouchControls(): void {
+    // Support multi-touch
+    this.input.addPointer(2);
+
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Skip if reset confirm is showing
+      if (this.resetConfirmOverlay) return;
+
+      const screenWidth = this.cameras.main.width;
+      const screenHeight = this.cameras.main.height;
+      const relativeX = pointer.x; // Screen coordinates (not world)
+      const relativeY = pointer.y;
+
+      // Check if touching jump button area (skip other controls)
+      const jumpButtonX = screenWidth - 80;
+      const jumpButtonY = screenHeight - 80;
+      const distToJumpButton = Math.sqrt(
+        Math.pow(relativeX - jumpButtonX, 2) + Math.pow(relativeY - jumpButtonY, 2)
+      );
+      if (distToJumpButton < 60) {
+        // Jump button handles this
+        return;
+      }
+
+      // Check if touching reset button area (skip other controls)
+      const resetButtonX = screenWidth - 80;
+      const resetButtonY = 80;
+      const distToResetButton = Math.sqrt(
+        Math.pow(relativeX - resetButtonX, 2) + Math.pow(relativeY - resetButtonY, 2)
+      );
+      if (distToResetButton < 60) {
+        // Reset button handles this
+        return;
+      }
+
+      // Show touch indicator
+      this.showTouchIndicator(relativeX, relativeY, pointer.id);
+
+      // Lower left = move left
+      if (relativeX < screenWidth * 0.3 && relativeY >= screenHeight * 0.5) {
+        this.touchLeft = true;
+        this.touchRight = false;
+      }
+      // Lower right = move right
+      else if (relativeX > screenWidth * 0.7 && relativeY >= screenHeight * 0.5) {
+        this.touchRight = true;
+        this.touchLeft = false;
+      }
+      // Lower center = fire
+      else if (relativeY >= screenHeight * 0.5) {
+        this.touchFire = true;
+      }
+
+      this.lastTouchTime = this.time.now;
+    });
+
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      // Skip if reset confirm is showing
+      if (this.resetConfirmOverlay) return;
+
+      const screenWidth = this.cameras.main.width;
+      const relativeX = pointer.x;
+
+      // Hide touch indicator
+      this.hideTouchIndicator(pointer.id);
+
+      // Check which zone was released
+      if (relativeX < screenWidth * 0.3) {
+        this.touchLeft = false;
+      } else if (relativeX > screenWidth * 0.7) {
+        this.touchRight = false;
+      }
+
+      this.touchJump = false;
+      this.touchFire = false;
+    });
+
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      // Skip if reset confirm is showing
+      if (this.resetConfirmOverlay) return;
+      if (!pointer.isDown) return;
+
+      const screenWidth = this.cameras.main.width;
+      const screenHeight = this.cameras.main.height;
+      const relativeX = pointer.x;
+      const relativeY = pointer.y;
+
+      // Update touch indicator position
+      this.updateTouchIndicator(relativeX, relativeY, pointer.id);
+
+      // Update movement based on current position (for drag)
+      if (relativeY >= screenHeight * 0.5) {
+        if (relativeX < screenWidth * 0.3) {
+          this.touchLeft = true;
+          this.touchRight = false;
+        } else if (relativeX > screenWidth * 0.7) {
+          this.touchRight = true;
+          this.touchLeft = false;
+        } else {
+          this.touchLeft = false;
+          this.touchRight = false;
+        }
+      }
+    });
+  }
+
+  private showTouchIndicator(x: number, y: number, pointerId: number): void {
+    const indicator = this.add.circle(x, y, 40, 0x000000, 0.3);
+    indicator.setScrollFactor(0);
+    indicator.setDepth(200);
+    indicator.setData('pointerId', pointerId);
+    this.touchIndicators.push(indicator);
+  }
+
+  private hideTouchIndicator(pointerId: number): void {
+    for (let i = this.touchIndicators.length - 1; i >= 0; i--) {
+      if (this.touchIndicators[i].getData('pointerId') === pointerId) {
+        this.touchIndicators[i].destroy();
+        this.touchIndicators.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  private updateTouchIndicator(x: number, y: number, pointerId: number): void {
+    for (const indicator of this.touchIndicators) {
+      if (indicator.getData('pointerId') === pointerId) {
+        indicator.setPosition(x, y);
+        break;
+      }
+    }
   }
 
   private setupSounds(): void {
@@ -119,17 +484,29 @@ export class GameScene extends Phaser.Scene {
       console.warn('BGM not available');
     }
 
-    this.sounds = {
-      pnyo: this.sound.add('pnyo', { volume: 0.7 }),
-      alienDestroy: this.sound.add('alien_destroy', { volume: 0.6 }),
-      explosion: this.sound.add('explosion', { volume: 0.5 })
-    };
+    try {
+      this.sounds = {
+        pnyo: this.sound.add('pnyo', { volume: 0.7 }),
+        alienDestroy: this.sound.add('alien_destroy', { volume: 0.6 }),
+        explosion: this.sound.add('explosion', { volume: 0.5 })
+      };
+    } catch (e) {
+      console.warn('Sound effects not available');
+      this.sounds = {
+        pnyo: { play: () => {} } as Phaser.Sound.BaseSound,
+        alienDestroy: { play: () => {} } as Phaser.Sound.BaseSound,
+        explosion: { play: () => {} } as Phaser.Sound.BaseSound
+      };
+    }
   }
 
   private createInitialPlatforms(): void {
-    // Ground platform
-    const ground = new Platform(this, 400, 550, 800, 40);
-    this.platforms.push(ground);
+    // Initial ground platforms
+    for (let i = 0; i < 5; i++) {
+      const ground = new Platform(this, i * 400 + 200, 550, 400, 40);
+      this.platforms.push(ground);
+    }
+    this.lastGroundX = 4 * 400 + 200;
 
     // Starting platforms
     for (let i = 0; i < 10; i++) {
@@ -173,6 +550,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
+    // Skip update if game over or reset confirm is showing
+    if (this.isGameOver || this.resetConfirmOverlay) return;
+
     // Input handling
     this.handleInput(time);
 
@@ -207,7 +587,7 @@ export class GameScene extends Phaser.Scene {
   private handleInput(time: number): void {
     const slime = this.slime;
 
-    // Movement
+    // Movement (keyboard)
     if (this.cursors.left.isDown) {
       slime.x -= 5;
       slime.facingRight = false;
@@ -217,13 +597,23 @@ export class GameScene extends Phaser.Scene {
       slime.facingRight = true;
     }
 
-    // Jump
+    // Movement (touch)
+    if (this.touchLeft) {
+      slime.x -= 5;
+      slime.facingRight = false;
+    }
+    if (this.touchRight) {
+      slime.x += 5;
+      slime.facingRight = true;
+    }
+
+    // Jump (keyboard)
     if (Phaser.Input.Keyboard.JustDown(this.cursors.up)) {
       slime.jump();
     }
 
-    // Fire
-    if (this.spaceKey.isDown && slime.canFire(time)) {
+    // Fire (keyboard or touch)
+    if ((this.spaceKey.isDown || this.touchFire) && slime.canFire(time)) {
       this.fireProjectile(time);
     }
   }
@@ -282,6 +672,13 @@ export class GameScene extends Phaser.Scene {
 
   private generateContent(): void {
     const screenRight = this.cameraX + 1000;
+
+    // Generate ground (continuous)
+    while (this.lastGroundX < screenRight) {
+      this.lastGroundX += 400;
+      const ground = new Platform(this, this.lastGroundX, 550, 400, 40);
+      this.platforms.push(ground);
+    }
 
     // Generate platforms
     while (this.lastPlatformX < screenRight) {
@@ -349,7 +746,9 @@ export class GameScene extends Phaser.Scene {
     // Reset ground state
     slime.isOnGround = false;
 
-    // Platform collisions
+    // Platform collisions - collect platforms to launch after loop
+    const platformsToLaunch: Platform[] = [];
+
     for (const platform of this.platforms) {
       const platBounds = platform.getBounds();
 
@@ -359,9 +758,9 @@ export class GameScene extends Phaser.Scene {
           slime.y = platBounds.y - slime.size * 0.35;
           slime.land();
 
-          // Purple form launches platforms
+          // Purple form launches platforms (defer to after loop)
           if (slime.isPurpleForm && !(platform instanceof SpikedPlatform)) {
-            this.launchPlatform(platform as Platform);
+            platformsToLaunch.push(platform as Platform);
           }
         }
       }
@@ -374,6 +773,11 @@ export class GameScene extends Phaser.Scene {
           return;
         }
       }
+    }
+
+    // Launch platforms after loop to avoid modifying array during iteration
+    for (const platform of platformsToLaunch) {
+      this.launchPlatform(platform);
     }
 
     // Apple collisions
@@ -531,6 +935,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleAlienAttacks(time: number): void {
+    // No attacks for first 10 seconds after game start
+    if (time - this.gameStartTime < 10000) return;
+
     if (time - this.alienAttackTimer < this.alienAttackInterval) return;
     this.alienAttackTimer = time;
 
@@ -614,9 +1021,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private gameOver(): void {
-    if (this.bgm) {
-      this.bgm.stop();
+    if (this.isGameOver) return;
+    this.isGameOver = true;
+
+    try {
+      if (this.bgm) {
+        this.bgm.stop();
+      }
+    } catch (e) {
+      // Ignore sound errors
     }
-    this.scene.start('GameOverScene', { score: this.score });
+
+    this.time.delayedCall(100, () => {
+      this.scene.start('GameOverScene', { score: this.score });
+    });
   }
 }
